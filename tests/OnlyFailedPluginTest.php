@@ -155,6 +155,73 @@ test('--rerun-failed composes with --parallel: one coordinated rerun, run serial
         ->and($result->isSuccessful())->toBeFalse();
 });
 
+test('--rerun-failed --parallel reports a flaky test passing on rerun, run still fails overall', function () {
+    $project = prepareFixtureProject();
+
+    // The flaky test fails in the parallel main pass (inside some worker), then
+    // the coordinator's serial rerun subprocess re-executes it from the same
+    // counter file on disk and it passes. This is the one path not covered by
+    // the other --parallel tests: those use tests that always fail, so none of
+    // them prove a fail-then-pass transition actually survives the parallel
+    // worker -> coordinator merge -> serial rerun subprocess handoff.
+    writeFixtureTestFiles($project, [
+        'AlphaTest.php' => <<<'PHP'
+            <?php
+
+            test('flaky test', function () {
+                file_put_contents(__DIR__.'/../alpha.pid', (string) getmypid());
+
+                $counterFile = __DIR__.'/../flaky-counter.txt';
+                $count = is_file($counterFile) ? (int) file_get_contents($counterFile) : 0;
+                file_put_contents($counterFile, (string) ($count + 1));
+
+                expect($count)->toBeGreaterThan(0);
+            });
+            PHP,
+        'BetaTest.php' => <<<'PHP'
+            <?php
+
+            test('beta passes', function () {
+                file_put_contents(__DIR__.'/../beta.pid', (string) getmypid());
+                expect(true)->toBeTrue();
+            });
+            PHP,
+        'GammaTest.php' => <<<'PHP'
+            <?php
+
+            test('gamma passes', function () {
+                file_put_contents(__DIR__.'/../gamma.pid', (string) getmypid());
+                expect(true)->toBeTrue();
+            });
+            PHP,
+        'DeltaTest.php' => <<<'PHP'
+            <?php
+
+            test('delta passes', function () {
+                file_put_contents(__DIR__.'/../delta.pid', (string) getmypid());
+                expect(true)->toBeTrue();
+            });
+            PHP,
+    ]);
+
+    $result = runFixturePest($project, ['--rerun-failed', '--parallel', '--processes=2']);
+    $output = $result->getOutput();
+    $sections = explode('Rerun of failed tests', $output);
+
+    $pids = array_map(
+        fn (string $name): string => trim((string) file_get_contents($project.'/'.$name.'.pid')),
+        ['alpha', 'beta', 'gamma', 'delta'],
+    );
+
+    expect($pids)->not->toContain('')
+        ->and(count(array_unique($pids)))->toBeGreaterThan(1)
+        ->and($sections)->toHaveCount(2)
+        ->and($sections[0])->toContain('FAIL')
+        ->and($sections[1])->toContain('PASS')
+        ->and($sections[1])->not->toContain('FAIL')
+        ->and($result->isSuccessful())->toBeFalse();
+});
+
 test('a failing test is recorded and a passing test is not', function () {
     $project = prepareFixtureProject();
 
