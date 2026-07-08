@@ -6,7 +6,8 @@
         "tim-zitcha/pest-plugin-rerun": "@dev"
     },
     "require-dev": {
-        "pestphp/pest": "^4.0"
+        "pestphp/pest": "^4.0",
+        "brianium/paratest": "^7.20"
     },
     "repositories": [
         {

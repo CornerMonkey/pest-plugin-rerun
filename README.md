@@ -51,18 +51,32 @@ or possibly flaky (passes on rerun), but it does not launder the exit code.
 This is a deliberate strict default: CI should not go green just because a
 test happened to pass on a second attempt.
 
-## `--parallel` is not supported
+## `--parallel` support
 
-Both flags throw immediately if combined with `--parallel`. Each paratest
-worker is a separate process with its own partial view of the results, so
-detecting "what failed" and safely rewriting a single `.pest-only-failed.json`
-isn't well-defined across workers. Rather than silently producing an
-incomplete or wrong failure list, both flags refuse to run under `--parallel`.
+Both flags work under `--parallel`. Each paratest worker is a separate
+process with its own partial view of the results — only the fraction of
+tests it happened to run — so this plugin does nothing in worker processes
+and defers entirely to the **coordinator** process. The coordinator never
+runs any tests itself (it just dispatches work to workers and waits), so
+instead of PHPUnit's normal per-process result facade, it reads
+`Pest\Plugins\Parallel\Paratest\WrapperRunner::$result` — the object Pest's
+own parallel runner populates by merging every worker's serialized result
+once they've all finished. That merged result is what gets written to
+`.pest-only-failed.json` and what `--rerun-failed` reruns.
+
+The rerun itself always runs **serially**, even after a `--parallel` main
+pass — a rerun set is normally a handful of tests, not enough to be worth
+re-parallelizing, and it avoids recursing through the whole worker/coordinator
+split a second time.
+
+`--only-failed`'s read side needs no special handling at all: it pushes a
+`--filter` argument before Pest hands off to paratest, so paratest just
+distributes the already-narrowed test list across workers as normal.
 
 ## Known upgrade risks
 
-This plugin relies on two internal PHPUnit/Pest details that are **not**
-covered by either project's backward-compatibility promise:
+This plugin relies on internal PHPUnit/Pest details that are **not** covered
+by either project's backward-compatibility promise:
 
 - `PHPUnit\TestRunner\TestResult\Facade::result()` — PHPUnit's own internal
   accessor for the current run's results, marked `@internal`. A future
@@ -76,6 +90,11 @@ covered by either project's backward-compatibility promise:
   does, so `--filter` round-trips correctly — but that override is itself
   `@internal` to Pest and could change in a future release. Classic
   class-based (`extends TestCase`) tests aren't affected by this distinction.
+- `Pest\Plugins\Parallel::isWorker()`/`isEnabled()` and
+  `Pest\Plugins\Parallel\Paratest\WrapperRunner::$result` — all `@internal`
+  to Pest, and specific to Pest's current paratest integration. If Pest
+  changes how it merges parallel results, `--parallel` support here could
+  silently start reading a stale or empty result again.
 
 If either of these break, both flags will most likely fail to select the
 right tests (or select none) rather than fail silently — bug reports welcome.

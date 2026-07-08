@@ -105,6 +105,23 @@ function writeFixtureTest(string $projectPath, string $contents): void
 }
 
 /**
+ * Writes the given test files into the fixture project, removing the default
+ * ExampleTest.php first. Used for scenarios that need multiple test files —
+ * e.g. --parallel, where paratest distributes work file-by-file, so a single
+ * file can't exercise more than one worker.
+ *
+ * @param  array<string, string>  $files  filename => contents
+ */
+function writeFixtureTestFiles(string $projectPath, array $files): void
+{
+    @unlink($projectPath.'/tests/ExampleTest.php');
+
+    foreach ($files as $filename => $contents) {
+        file_put_contents($projectPath.'/tests/'.$filename, $contents);
+    }
+}
+
+/**
  * Runs `pest` inside the given fixture project and returns the completed process.
  *
  * @param  list<string>  $arguments

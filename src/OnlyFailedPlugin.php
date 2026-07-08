@@ -7,11 +7,13 @@ namespace Zitcha\PestOnlyFailed;
 use Pest\Contracts\HasPrintableTestCaseName;
 use Pest\Contracts\Plugins\HandlesArguments;
 use Pest\Contracts\Plugins\Terminable;
-use Pest\Exceptions\InvalidOption;
 use Pest\Plugins\Concerns\HandleArguments;
+use Pest\Plugins\Parallel;
+use Pest\Plugins\Parallel\Paratest\WrapperRunner;
 use PHPUnit\Event\Code\Test as CodeTest;
 use PHPUnit\Event\Code\TestMethod;
 use PHPUnit\TestRunner\TestResult\Facade as ResultFacade;
+use PHPUnit\TestRunner\TestResult\TestResult;
 use Symfony\Component\Process\Process;
 
 /**
@@ -37,10 +39,6 @@ final class OnlyFailedPlugin implements HandlesArguments, Terminable
         if ($this->hasArgument('--only-failed', $arguments)) {
             $arguments = $this->popArgument('--only-failed', $arguments);
 
-            if ($this->hasArgument('--parallel', $arguments)) {
-                throw new InvalidOption('The [--only-failed] option is not supported when running in parallel.');
-            }
-
             $ids = $this->readStoredIds();
 
             if ($ids !== []) {
@@ -51,10 +49,6 @@ final class OnlyFailedPlugin implements HandlesArguments, Terminable
         if ($this->hasArgument('--rerun-failed', $arguments)) {
             $arguments = $this->popArgument('--rerun-failed', $arguments);
 
-            if ($this->hasArgument('--parallel', $arguments)) {
-                throw new InvalidOption('The [--rerun-failed] option is not supported when running in parallel.');
-            }
-
             $this->rerunFailed = true;
         }
 
@@ -63,6 +57,14 @@ final class OnlyFailedPlugin implements HandlesArguments, Terminable
 
     public function terminate(): void
     {
+        // Each paratest worker only ran a fragment of the suite and has no view of
+        // the other workers' results. Only the coordinator process — which merges
+        // every worker's result via WrapperRunner::$result once they've all
+        // finished — may decide what to persist or rerun.
+        if (Parallel::isEnabled() && Parallel::isWorker()) {
+            return;
+        }
+
         $ids = $this->failedTestIds();
 
         // The rerun below spawns a subprocess that loads this same plugin. It must not
@@ -87,7 +89,7 @@ final class OnlyFailedPlugin implements HandlesArguments, Terminable
      */
     private function failedTestIds(): array
     {
-        $result = ResultFacade::result();
+        $result = $this->currentResult();
         $ids = [];
 
         foreach ([...$result->testFailedEvents(), ...$result->testErroredEvents()] as $event) {
@@ -102,6 +104,21 @@ final class OnlyFailedPlugin implements HandlesArguments, Terminable
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * Under `--parallel`, this process is the coordinator (workers already returned
+     * early in terminate()). Its own result facade is empty — it never runs any
+     * tests itself — so the real, merged-across-all-workers result lives on
+     * WrapperRunner::$result instead, populated once every worker has finished.
+     */
+    private function currentResult(): TestResult
+    {
+        if (Parallel::isEnabled()) {
+            return WrapperRunner::$result ?? ResultFacade::result();
+        }
+
+        return ResultFacade::result();
     }
 
     /**

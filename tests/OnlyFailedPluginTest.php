@@ -2,38 +2,96 @@
 
 declare(strict_types=1);
 
-test('--only-failed rejects --parallel instead of silently producing wrong results', function () {
+test('--parallel merges failures from every worker into one failure record', function () {
     $project = prepareFixtureProject();
 
-    writeFixtureTest($project, <<<'PHP'
-        <?php
+    // Two separate files so paratest actually distributes them across different
+    // worker processes rather than running both in a single worker.
+    writeFixtureTestFiles($project, [
+        'AlphaTest.php' => <<<'PHP'
+            <?php
 
-        test('alpha passes', function () {
-            expect(true)->toBeTrue();
-        });
-        PHP);
+            test('alpha fails', function () {
+                expect(true)->toBeFalse();
+            });
+            PHP,
+        'BetaTest.php' => <<<'PHP'
+            <?php
 
-    $result = runFixturePest($project, ['--only-failed', '--parallel']);
+            test('beta fails', function () {
+                expect(true)->toBeFalse();
+            });
 
-    expect($result->isSuccessful())->toBeFalse()
-        ->and($result->getErrorOutput().$result->getOutput())->toContain('not supported when running in parallel');
+            test('beta passes', function () {
+                expect(true)->toBeTrue();
+            });
+            PHP,
+    ]);
+
+    runFixturePest($project, ['--parallel', '--processes=2']);
+
+    expect(fixtureFailedIds($project))->toEqualCanonicalizing([
+        'Tests\AlphaTest::alpha fails',
+        'Tests\BetaTest::beta fails',
+    ]);
 });
 
-test('--rerun-failed rejects --parallel instead of silently producing wrong results', function () {
+test('--only-failed composes with --parallel', function () {
     $project = prepareFixtureProject();
 
-    writeFixtureTest($project, <<<'PHP'
-        <?php
+    writeFixtureTestFiles($project, [
+        'AlphaTest.php' => <<<'PHP'
+            <?php
 
-        test('alpha passes', function () {
-            expect(true)->toBeTrue();
-        });
-        PHP);
+            test('alpha fails', function () {
+                expect(true)->toBeFalse();
+            });
+            PHP,
+        'BetaTest.php' => <<<'PHP'
+            <?php
 
-    $result = runFixturePest($project, ['--rerun-failed', '--parallel']);
+            test('beta passes', function () {
+                expect(true)->toBeTrue();
+            });
+            PHP,
+    ]);
 
-    expect($result->isSuccessful())->toBeFalse()
-        ->and($result->getErrorOutput().$result->getOutput())->toContain('not supported when running in parallel');
+    runFixturePest($project, ['--parallel', '--processes=2']);
+
+    $result = runFixturePest($project, ['--only-failed', '--parallel', '--processes=2']);
+
+    expect($result->getOutput())->toContain('1 failed');
+});
+
+test('--rerun-failed composes with --parallel: one coordinated rerun, run serially', function () {
+    $project = prepareFixtureProject();
+
+    writeFixtureTestFiles($project, [
+        'AlphaTest.php' => <<<'PHP'
+            <?php
+
+            test('alpha fails', function () {
+                expect(true)->toBeFalse();
+            });
+            PHP,
+        'BetaTest.php' => <<<'PHP'
+            <?php
+
+            test('beta fails', function () {
+                expect(true)->toBeFalse();
+            });
+            PHP,
+    ]);
+
+    $result = runFixturePest($project, ['--rerun-failed', '--parallel', '--processes=2']);
+    $output = $result->getOutput();
+    $sections = explode('Rerun of failed tests', $output);
+
+    expect($sections)->toHaveCount(2)
+        ->and($sections[1])->toContain('alpha fails')
+        ->and($sections[1])->toContain('beta fails')
+        ->and($sections[1])->not->toContain('Parallel:')
+        ->and($result->isSuccessful())->toBeFalse();
 });
 
 test('a failing test is recorded and a passing test is not', function () {
