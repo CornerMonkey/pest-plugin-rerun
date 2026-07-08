@@ -1,0 +1,8 @@
+/vendor/
+/composer.lock
+/build/
+/.pest-only-failed.json
+/.phpunit.result.cache
+/tests/Fixtures/project/vendor/
+/tests/Fixtures/project/composer.lock
+/tests/Fixtures/project/.pest-only-failed.json

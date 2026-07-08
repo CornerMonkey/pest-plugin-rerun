@@ -1,0 +1,27 @@
+{
+    "name": "zitcha/pest-only-failed-fixture",
+    "type": "project",
+    "require": {
+        "php": "^8.3",
+        "tim-zitcha/pest-plugin-rerun": "@dev"
+    },
+    "require-dev": {
+        "pestphp/pest": "^4.0"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../..",
+            "options": {
+                "symlink": false
+            }
+        }
+    ],
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}

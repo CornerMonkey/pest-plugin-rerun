@@ -1,0 +1,56 @@
+{
+    "name": "tim-zitcha/pest-plugin-rerun",
+    "description": "Adds --only-failed and --rerun-failed flags to Pest.",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/tim-zitcha/pest-plugin-rerun",
+    "support": {
+        "issues": "https://github.com/tim-zitcha/pest-plugin-rerun/issues",
+        "source": "https://github.com/tim-zitcha/pest-plugin-rerun"
+    },
+    "require": {
+        "php": "^8.3",
+        "symfony/process": "^7.4.13|^8.1.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.29",
+        "pestphp/pest": "^4.0",
+        "phpstan/phpstan": "^2.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Zitcha\\PestOnlyFailed\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "pest": {
+            "plugins": [
+                "Zitcha\\PestOnlyFailed\\OnlyFailedPlugin"
+            ]
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "lint": "pint",
+        "test:lint": "pint --test",
+        "test:types": "phpstan analyse --memory-limit=1G",
+        "test:unit": "pest",
+        "test": [
+            "@test:lint",
+            "@test:types",
+            "@test:unit"
+        ]
+    }
+}
