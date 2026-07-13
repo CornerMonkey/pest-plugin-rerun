@@ -1,12 +1,12 @@
 {
-    "name": "tim-zitcha/pest-plugin-rerun",
+    "name": "cornermonkey/pest-plugin-rerun",
     "description": "Adds --only-failed and --rerun-failed flags to Pest.",
     "type": "library",
     "license": "MIT",
-    "homepage": "https://github.com/tim-zitcha/pest-plugin-rerun",
+    "homepage": "https://github.com/CornerMonkey/pest-plugin-rerun",
     "support": {
-        "issues": "https://github.com/tim-zitcha/pest-plugin-rerun/issues",
-        "source": "https://github.com/tim-zitcha/pest-plugin-rerun"
+        "issues": "https://github.com/CornerMonkey/pest-plugin-rerun/issues",
+        "source": "https://github.com/CornerMonkey/pest-plugin-rerun"
     },
     "require": {
         "php": "^8.3",
